@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const nodemailer = require("nodemailer");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 5000;
@@ -30,6 +31,45 @@ function verifyJWT(req, res, next) {
     req.decoded = decoded;
     next();
   });
+}
+
+// Send Grid Authentication
+const transporter = nodemailer.createTransport({
+  host: "smtp.sendgrid.net",
+  port: 587,
+  auth: {
+    user: "apikey",
+    pass: process.env.EMAIL_SENDER_KEY,
+  },
+});
+
+function sendAppointmentEmail(booking) {
+  const { patient, patientName, treatment, date, slot } = booking;
+  transporter.sendMail(
+    {
+      from: process.env.EMAIL_SENDER, // verified sender email
+      to: patient, // recipient email
+      subject: `Your Appointment for ${treatment} is on ${date} at ${slot} is confirmed`, // Subject line
+      text: `Your Appointment for ${treatment} is on ${date} at ${slot} is confirmed`, // plain text body
+      html: `
+      <div>
+        <p>Hello, ${patientName}</p>
+        <h3>Your appointment for ${treatment} is confirmed</h3>
+        <p>Looking forward to seeing you on ${date} at ${slot}</p>
+        <h3>Our Address</h3>
+        <p>Dhaka, Bangladesh</p>
+        <a href="https://google.com">Learn More</a>
+      </div>
+      `, // html body
+    },
+    function (error, info) {
+      if (error) {
+        console.log(error);
+      } else {
+        console.log("Email sent: " + info.response);
+      }
+    }
+  );
 }
 
 async function run() {
@@ -171,6 +211,8 @@ async function run() {
         return res.send({ success: false, booking: exists });
       }
       const result = await bookingCollection.insertOne(booking);
+      console.log("Sending Email");
+      sendAppointmentEmail(booking);
       return res.send({ success: true, result });
     });
 
